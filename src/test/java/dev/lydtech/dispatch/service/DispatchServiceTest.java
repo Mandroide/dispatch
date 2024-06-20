@@ -3,6 +3,7 @@ package dev.lydtech.dispatch.service;
 import dev.lydtech.dispatch.message.OrderCreated;
 import dev.lydtech.dispatch.message.OrderDispatched;
 import dev.lydtech.dispatch.util.TestEventData;
+import dev.lydtech.message.DispatchCompleted;
 import dev.lydtech.message.DispatchPreparing;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,8 @@ class DispatchServiceTest {
                 .thenReturn(completableFuture);
         Mockito.when(kafkaProducer.send(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any(OrderDispatched.class)))
                 .thenReturn(completableFuture);
+        Mockito.when(kafkaProducer.send(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any(DispatchCompleted.class)))
+                .thenReturn(completableFuture);
         String key = UUID.randomUUID().toString();
         OrderCreated orderCreated = TestEventData.createOrder(UUID.randomUUID(), UUID.randomUUID().toString());
         dispatchService.process(key, orderCreated);
@@ -45,6 +48,9 @@ class DispatchServiceTest {
         Mockito.verify(kafkaProducer, Mockito.times(1)).send(Mockito.eq("order.dispatched"),
                 Mockito.eq(key),
                 Mockito.any(OrderDispatched.class));
+        Mockito.verify(kafkaProducer, Mockito.times(1)).send(Mockito.eq("dispatch.tracking"),
+                Mockito.eq(key),
+                Mockito.any(DispatchCompleted.class));
     }
 
     @Test

@@ -4,12 +4,14 @@ import dev.lydtech.dispatch.DispatchConfiguration;
 import dev.lydtech.dispatch.message.OrderCreated;
 import dev.lydtech.dispatch.message.OrderDispatched;
 import dev.lydtech.dispatch.util.TestEventData;
+import dev.lydtech.message.DispatchCompleted;
 import dev.lydtech.message.DispatchPreparing;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -46,18 +48,21 @@ class OrderDispatchedIntegrationTest {
     @Autowired
     private KafkaTemplate<String, Object> kafkaTemplate;
     @Autowired
-    private KafkaTestListener testListener;
+    private DispatchTrackingListener dispatchTrackingListener;
+    @Autowired
+    private OrderDispatchedListener orderDispatchedListener;
     @Autowired
     private EmbeddedKafkaKraftBroker embeddedKafkaBroker;
     @Autowired
     private KafkaListenerEndpointRegistry registry;
 
     @Component
-    static class KafkaTestListener {
+    @KafkaListener(groupId = "KafkaIntegrationTest", topics = DISPATCH_TRACKING_TOPIC)
+    static class DispatchTrackingListener {
         AtomicInteger dispatchPreparingCounter = new AtomicInteger(0);
-        AtomicInteger orderDispatchedCounter = new AtomicInteger(0);
+        AtomicInteger dispatchCompletedCounter = new AtomicInteger(0);
 
-        @KafkaListener(groupId = "KafkaIntegrationTest", topics = DISPATCH_TRACKING_TOPIC)
+        @KafkaHandler
         void receiveDispatchPreparing(@Header(KafkaHeaders.RECEIVED_KEY) String key,
                                       @Payload DispatchPreparing payload) {
             log.debug("Received DispatchPreparing key: {} - payload: {}", key, payload);
@@ -66,7 +71,22 @@ class OrderDispatchedIntegrationTest {
             dispatchPreparingCounter.incrementAndGet();
         }
 
-        @KafkaListener(groupId = "KafkaIntegrationTest", topics = ORDER_DISPATCHED_TOPIC)
+        @KafkaHandler
+        void receiveDispatchCompleted(@Header(KafkaHeaders.RECEIVED_KEY) String key,
+                                      @Payload DispatchCompleted payload) {
+            log.debug("Received receiveDispatchCompleted key: {} - payload: {}", key, payload);
+            assertThat(key, notNullValue());
+            assertThat(payload, notNullValue());
+            dispatchCompletedCounter.incrementAndGet();
+        }
+    }
+
+    @Component
+    @KafkaListener(groupId = "KafkaIntegrationTest", topics = ORDER_DISPATCHED_TOPIC)
+    static class OrderDispatchedListener {
+        AtomicInteger orderDispatchedCounter = new AtomicInteger(0);
+
+        @KafkaHandler
         void receiveOrderDispatched(@Header(KafkaHeaders.RECEIVED_KEY) String key,
                                     @Payload OrderDispatched payload) {
             log.debug("Received OrderDispatched key: {} - payload: {}", key, payload);
@@ -78,8 +98,16 @@ class OrderDispatchedIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        testListener.dispatchPreparingCounter.set(0);
-        testListener.orderDispatchedCounter.set(0);
+        orderDispatchedListener.orderDispatchedCounter.set(0);
+        dispatchTrackingListener.dispatchPreparingCounter.set(0);
+        dispatchTrackingListener.dispatchCompletedCounter.set(0);
+
+        // Wait until the partitions are assigned. The application listener container has one topic and the test
+        // listener container has multiple topics, so take that into account when awaiting for topic assignment.
+//        registry.getListenerContainers().forEach(container ->
+//                ContainerTestUtils.waitForAssignment(container,
+//                        Objects.requireNonNull(container.getContainerProperties().getTopics()).length
+//                                * embeddedKafkaBroker.getPartitionsPerTopic()));
 
         registry.getListenerContainers().forEach(container ->
                 ContainerTestUtils.waitForAssignment(container, embeddedKafkaBroker.getPartitionsPerTopic()));
@@ -92,9 +120,11 @@ class OrderDispatchedIntegrationTest {
         sendMessage(ORDER_CREATED_TOPIC, key, orderCreated);
 
         await().atMost(3L, TimeUnit.SECONDS).pollDelay(100L, TimeUnit.MILLISECONDS)
-                .untilAtomic(testListener.dispatchPreparingCounter, equalTo(1));
+                .untilAtomic(orderDispatchedListener.orderDispatchedCounter, equalTo(1));
         await().atMost(1L, TimeUnit.SECONDS).pollDelay(100L, TimeUnit.MILLISECONDS)
-                .untilAtomic(testListener.orderDispatchedCounter, equalTo(1));
+                .untilAtomic(dispatchTrackingListener.dispatchPreparingCounter, equalTo(1));
+        await().atMost(1L, TimeUnit.SECONDS).pollDelay(100L, TimeUnit.MILLISECONDS)
+                .untilAtomic(dispatchTrackingListener.dispatchCompletedCounter, equalTo(1));
 
     }
 

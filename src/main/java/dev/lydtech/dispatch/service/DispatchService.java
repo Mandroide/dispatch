@@ -2,12 +2,14 @@ package dev.lydtech.dispatch.service;
 
 import dev.lydtech.dispatch.message.OrderCreated;
 import dev.lydtech.dispatch.message.OrderDispatched;
+import dev.lydtech.message.DispatchCompleted;
 import dev.lydtech.message.DispatchPreparing;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -32,6 +34,13 @@ public class DispatchService {
                 .notes("Dispatched: " + orderCreated.getOrderId())
                 .build();
         kafkaProducer.send(ORDER_DISPATCHED_TOPIC, key, orderDispatched).get();
+
+        DispatchCompleted dispatchCompleted = DispatchCompleted.builder()
+                .orderId(orderCreated.getOrderId())
+                .completionDate(LocalDate.now())
+                .build();
+
+        kafkaProducer.send(DISPATCH_TRACKING_TOPIC, key, dispatchCompleted).get();
 
         log.info("Sent messages: key: {} - orderId: {} - processedById:{} ", key, orderCreated.getOrderId(), APPLICATION_ID);
     }

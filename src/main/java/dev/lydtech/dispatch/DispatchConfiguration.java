@@ -33,7 +33,7 @@ public class DispatchConfiguration {
                 Map.entry(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers),
                 Map.entry(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class),
                 Map.entry(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class),
-                Map.entry(JsonDeserializer.VALUE_DEFAULT_TYPE, OrderCreated.class.getCanonicalName()),
+//                Map.entry(JsonDeserializer.VALUE_DEFAULT_TYPE, OrderCreated.class.getCanonicalName()),
                 Map.entry(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class),
                 Map.entry(JsonDeserializer.TRUSTED_PACKAGES, "*"));
         return new DefaultKafkaConsumerFactory<>(configs);
