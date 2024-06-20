@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
-import org.springframework.messaging.handler.annotation.Headers;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
@@ -20,8 +19,9 @@ public class OrderCreatedHandler {
     private final DispatchService dispatchService;
 
     @KafkaListener(id = "orderConsumerClient", topics = "order.created",
-            groupId = "dispatch.order.created.consumer2", containerFactory = "kafkaListenerContainerFactory")
-    public void listen(@Header(KafkaHeaders.RECEIVED_PARTITION) int partition, @Header(KafkaHeaders.RECEIVED_KEY) String key, @Payload OrderCreated payload) {
+            groupId = "dispatch.order.created.consumer2", containerFactory = "kafkaListenerContainerFactoryObj")
+    public void listen(@Header(KafkaHeaders.RECEIVED_PARTITION) int partition, @Header(KafkaHeaders.RECEIVED_KEY) String key,
+                       @Payload OrderCreated payload) {
         log.info("Received message: partition: {} - key: {} - payload: {}", partition, key, payload);
         try {
             dispatchService.process(key, payload);
